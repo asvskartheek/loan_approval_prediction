@@ -22,4 +22,5 @@ NOTE: 0 in the target column, loan_status indicates that the loan is approved. [
 | Submission File | Date & Time | CV ROC_AUC | Public Score |
 |-----------------|-------------|------------|--------------|
 | [Autogluon v1](predictions/submission_autogluon_2024-10-02_06-21-21.csv) | 2024-10-02 06:21:21 | 0.98411 | 0.96161 |
-
+| [Undersampling 1:1](predictions/submission_autogluon_2024-10-02_08-56-07.csv) | 2024-10-02 08:56:07 | 0.98477 | 0.96101 |
+| [Undersampling 2:1](predictions/submission_autogluon_2024-10-02_08-57-59.csv) | 2024-10-02 08:57:59 | 0.98408 | - |

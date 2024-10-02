@@ -2,7 +2,7 @@
 This script trains an AutoGluon model for loan approval prediction.
 
 It performs the following main steps:
-1. Data preprocessing
+1. Data preprocessing (including class balancing)
 2. Model training using AutoGluon's TabularPredictor
 3. Model evaluation
 4. Generating predictions for submission
@@ -15,6 +15,7 @@ from datetime import datetime
 import pandas as pd
 from autogluon.tabular import TabularPredictor
 import logging
+from sklearn.utils import resample
 
 # Constants
 DATA_DIR = '/Users/asvs/kartheek_hobby_projects/loan_approval_prediction/data'
@@ -48,12 +49,25 @@ def data_preprocessing(df, test=False):
     2. Drops the 'id' column as it's not required for training or prediction.
     3. Converts categorical columns to 'category' dtype for AutoGluon compatibility.
     4. For training data (test=False), converts the target column to integer type.
+    5. For training data, applies undersampling to balance the classes.
     """
     df = df.copy()
     df = df.drop(columns=['id']) # dropping id column as it is not required for training
     df[CATEGORICAL_COLS] = df[CATEGORICAL_COLS].astype('category') # type casting categorical columns to category, necessary for AutoGluon
     if not test:
         df[TARGET_COL] = df[TARGET_COL].astype('int') # type casting target column to int.
+        
+        # Undersampling the majority class (0)
+        sampling_ratio = 2.0 # 2:1
+        df_majority = df[df[TARGET_COL] == 0]
+        df_minority = df[df[TARGET_COL] == 1]
+        df_majority_downsampled = resample(df_majority, 
+                                           replace=False,
+                                           n_samples=int(len(df_minority)*sampling_ratio),
+                                           random_state=42)
+        df = pd.concat([df_majority_downsampled, df_minority])
+        
+        logger.info(f"Class distribution after balancing: {df[TARGET_COL].value_counts()}")
 
     return df
 
@@ -73,7 +87,7 @@ def train_model(df_train):
     - Time limit: Specified by TIME_LIMIT constant
     - Verbosity: Set to 2 for detailed output
     """
-    predictor = TabularPredictor(label=TARGET_COL, eval_metric=EVAL_METRIC, log_to_file=True, log_file=LOG_FILE).fit(
+    predictor = TabularPredictor(label=TARGET_COL, eval_metric=EVAL_METRIC, log_to_file=True, log_file_path=LOG_FILE).fit(
         df_train,
         time_limit=TIME_LIMIT,
         verbosity=2
@@ -107,6 +121,17 @@ def evaluate_predictor(predictor, df_train):
     pred_df.to_csv(f"predictions/train_preds_autogluon_{TIME_STAMP}.csv", index=False)
     logger.info(f"Train predictions saved to predictions/train_preds_autogluon_{TIME_STAMP}.csv")
 
+    # ROC_AUC score
+    roc_auc = train_metrics[EVAL_METRIC]
+    logger.info(f"ROC_AUC score: {roc_auc:.5f}")
+
+    # Log the classification report with threshold 0.5
+    from sklearn.metrics import classification_report
+    y_true = df_train[TARGET_COL]
+    y_pred = (positive_class_preds > 0.5).astype(int)
+    report = classification_report(y_true, y_pred)
+    logger.info(f"Classification report:\n {report}")
+
 def save_submission_file(predictor, df_test, df_sub):
     """
     Generate predictions for the test set and save them in a submission file.
@@ -135,7 +160,7 @@ if __name__ == "__main__":
     This block performs the following steps:
     1. Sets up logging to capture all console output in a timestamped log file.
     2. Loads the training, test, and sample submission data from CSV files.
-    3. Preprocesses the training and test data.
+    3. Preprocesses the training and test data (including class balancing for training data).
     4. Trains an AutoGluon model on the preprocessed training data.
     5. Evaluates the trained model's performance on the training data.
     6. Generates predictions for the test data and saves them in a submission file.
@@ -147,12 +172,13 @@ if __name__ == "__main__":
         df_test  = pd.read_csv(f'{DATA_DIR}/test.csv')
         df_sub = pd.read_csv(f'{DATA_DIR}/sample_submission.csv')
 
-        df_train = data_preprocessing(df_train)
-        df_test = data_preprocessing(df_test, test=True)
+        logger.info(f"Original class distribution: {df_train['loan_status'].value_counts()}")
+        mod_df_train = data_preprocessing(df_train)
+        mod_df_test = data_preprocessing(df_test, test=True)
 
-        predictor = train_model(df_train)
-        evaluate_predictor(predictor, df_train)
-        save_submission_file(predictor, df_test, df_sub)
+        predictor = train_model(mod_df_train)
+        evaluate_predictor(predictor, df_train) # we need to pass the original df_train to the evaluate_predictor function, because the model has been trained on the downsampled df_train.
+        save_submission_file(predictor, mod_df_test, df_sub)
     except Exception as e:
         logger.exception("An error occurred during script execution:")
     finally:
