@@ -24,7 +24,7 @@ NUMERICAL_COLS = ['person_age', 'person_income', 'person_emp_length', 'loan_amnt
 TARGET_COL = 'loan_status'
 
 EVAL_METRIC = 'roc_auc'
-TIME_LIMIT = 1*60 # 1 minute
+TIME_LIMIT = 10*60 # 10 minutes
 TIME_STAMP = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 LOG_FILE = f"logs/train_autogluon_{TIME_STAMP}.log"
 
