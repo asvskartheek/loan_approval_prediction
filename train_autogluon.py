@@ -24,7 +24,8 @@ TARGET_COL = 'loan_status'
 
 EVAL_METRIC = 'roc_auc'
 TIME_LIMIT = 1*60 # 1 minute
-LOG_FILE = f"logs/train_autogluon_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"
+TIME_STAMP = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+LOG_FILE = f"logs/train_autogluon_{TIME_STAMP}.log"
 
 def data_preprocessing(df, test=False):
     """
@@ -77,20 +78,29 @@ def train_model(df_train):
 
 def evaluate_predictor(predictor, df_train):
     """
-    Evaluate the trained AutoGluon model and print performance metrics.
+    Evaluate the trained AutoGluon model, print performance metrics, and save predictions.
 
     Args:
         predictor (autogluon.tabular.TabularPredictor): The trained AutoGluon model.
         df_train (pandas.DataFrame): The training DataFrame used to train the model.
 
-    This function performs two evaluations:
+    This function performs the following:
     1. Calculates and prints the model's performance metrics on the training data.
     2. Calculates and prints feature importance scores.
+    3. Generates and saves probability predictions for the positive class.
     """
     train_metrics = predictor.evaluate(df_train)
     feature_importance = predictor.feature_importance(df_train)
     print(f"Train metrics:\n {train_metrics}")
     print(f"Feature importance:\n {feature_importance}")
+
+    # Save probability predictions on train dataset to a CSV file.
+    train_preds = predictor.predict_proba(df_train)
+    positive_class_preds = train_preds[1]
+    pred_df = df_train.copy()
+    pred_df['predicted_proba'] = positive_class_preds
+    pred_df.to_csv(f"predictions/train_preds_autogluon_{TIME_STAMP}.csv", index=False)
+    print(f"Train predictions saved to predictions/train_preds_autogluon_{TIME_STAMP}.csv")
 
 def save_submission_file(predictor, df_test, df_sub):
     """
@@ -110,8 +120,8 @@ def save_submission_file(predictor, df_test, df_sub):
     df_test = df_test.copy()
     df_sub = df_sub.copy()
     df_sub[TARGET_COL] = predictor.predict_proba(df_test)[1] # predicting the probability of the positive class, index 1 is for the positive class.
-    df_sub.to_csv(f"predictions/submission_autogluon_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.csv", index=False)
-
+    df_sub.to_csv(f"predictions/submission_autogluon_{TIME_STAMP}.csv", index=False)
+    print(f"Submission file saved to predictions/submission_autogluon_{TIME_STAMP}.csv")
 if __name__ == "__main__":
     """
     Main execution block of the script.
@@ -127,7 +137,6 @@ if __name__ == "__main__":
     All console output is redirected to the log file specified by LOG_FILE constant.
     """
     import sys
-    import io
 
     # Redirect stdout and stderr to a file
     sys.stdout = sys.stderr = open(LOG_FILE, 'w')
