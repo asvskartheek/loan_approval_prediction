@@ -1,0 +1,150 @@
+"""
+This script trains an AutoGluon model for loan approval prediction.
+
+It performs the following main steps:
+1. Data preprocessing
+2. Model training using AutoGluon's TabularPredictor
+3. Model evaluation
+4. Generating predictions for submission
+
+The script uses predefined constants for data paths, column names, and model parameters.
+Logging is implemented to capture all console output in a timestamped log file.
+"""
+
+from datetime import datetime
+import pandas as pd
+from autogluon.tabular import TabularPredictor
+
+# Constants
+DATA_DIR = '/Users/asvs/kartheek_hobby_projects/loan_approval_prediction/data'
+
+CATEGORICAL_COLS = ['person_home_ownership', 'loan_intent', 'loan_grade', 'cb_person_default_on_file']
+NUMERICAL_COLS = ['person_age', 'person_income', 'person_emp_length', 'loan_amnt', 'loan_int_rate', 'loan_percent_income', 'cb_person_cred_hist_length']
+TARGET_COL = 'loan_status'
+
+EVAL_METRIC = 'roc_auc'
+TIME_LIMIT = 1*60 # 1 minute
+LOG_FILE = f"logs/train_autogluon_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"
+
+def data_preprocessing(df, test=False):
+    """
+    Preprocess the input DataFrame for AutoGluon training or prediction.
+
+    Args:
+        df (pandas.DataFrame): The input DataFrame to preprocess.
+        test (bool): Flag indicating whether this is test data (default: False).
+
+    Returns:
+        pandas.DataFrame: The preprocessed DataFrame.
+
+    This function performs the following preprocessing steps:
+    1. Creates a copy of the input DataFrame to avoid modifying the original.
+    2. Drops the 'id' column as it's not required for training or prediction.
+    3. Converts categorical columns to 'category' dtype for AutoGluon compatibility.
+    4. For training data (test=False), converts the target column to integer type.
+    """
+    df = df.copy()
+    df = df.drop(columns=['id']) # dropping id column as it is not required for training
+    df[CATEGORICAL_COLS] = df[CATEGORICAL_COLS].astype('category') # type casting categorical columns to category, necessary for AutoGluon
+    if not test:
+        df[TARGET_COL] = df[TARGET_COL].astype('int') # type casting target column to int.
+
+    return df
+
+def train_model(df_train):
+    """
+    Train an AutoGluon TabularPredictor model on the preprocessed training data.
+
+    Args:
+        df_train (pandas.DataFrame): The preprocessed training DataFrame.
+
+    Returns:
+        autogluon.tabular.TabularPredictor: The trained AutoGluon model.
+
+    This function initializes and trains an AutoGluon TabularPredictor with the following parameters:
+    - Label column: Specified by TARGET_COL constant
+    - Evaluation metric: Specified by EVAL_METRIC constant
+    - Time limit: Specified by TIME_LIMIT constant
+    - Verbosity: Set to 2 for detailed output
+    """
+    predictor = TabularPredictor(label=TARGET_COL, eval_metric=EVAL_METRIC).fit(
+        df_train,
+        time_limit=TIME_LIMIT,
+        verbosity=2
+    )
+
+    return predictor
+
+def evaluate_predictor(predictor, df_train):
+    """
+    Evaluate the trained AutoGluon model and print performance metrics.
+
+    Args:
+        predictor (autogluon.tabular.TabularPredictor): The trained AutoGluon model.
+        df_train (pandas.DataFrame): The training DataFrame used to train the model.
+
+    This function performs two evaluations:
+    1. Calculates and prints the model's performance metrics on the training data.
+    2. Calculates and prints feature importance scores.
+    """
+    train_metrics = predictor.evaluate(df_train)
+    feature_importance = predictor.feature_importance(df_train)
+    print(f"Train metrics:\n {train_metrics}")
+    print(f"Feature importance:\n {feature_importance}")
+
+def save_submission_file(predictor, df_test, df_sub):
+    """
+    Generate predictions for the test set and save them in a submission file.
+
+    Args:
+        predictor (autogluon.tabular.TabularPredictor): The trained AutoGluon model.
+        df_test (pandas.DataFrame): The preprocessed test DataFrame.
+        df_sub (pandas.DataFrame): The sample submission DataFrame with the correct format.
+
+    This function performs the following steps:
+    1. Creates copies of the input DataFrames to avoid modifying the originals.
+    2. Uses the predictor to generate probability predictions for the positive class.
+    3. Adds the predictions to the submission DataFrame.
+    4. Saves the submission DataFrame as a CSV file with a timestamped filename.
+    """
+    df_test = df_test.copy()
+    df_sub = df_sub.copy()
+    df_sub[TARGET_COL] = predictor.predict_proba(df_test)[1] # predicting the probability of the positive class, index 1 is for the positive class.
+    df_sub.to_csv(f"predictions/submission_autogluon_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.csv", index=False)
+
+if __name__ == "__main__":
+    """
+    Main execution block of the script.
+
+    This block performs the following steps:
+    1. Sets up logging to capture all console output in a timestamped log file.
+    2. Loads the training, test, and sample submission data from CSV files.
+    3. Preprocesses the training and test data.
+    4. Trains an AutoGluon model on the preprocessed training data.
+    5. Evaluates the trained model's performance on the training data.
+    6. Generates predictions for the test data and saves them in a submission file.
+
+    All console output is redirected to the log file specified by LOG_FILE constant.
+    """
+    import sys
+    import io
+
+    # Redirect stdout and stderr to a file
+    sys.stdout = sys.stderr = open(LOG_FILE, 'w')
+
+    try:
+        df_train = pd.read_csv(f'{DATA_DIR}/train.csv')
+        df_test  = pd.read_csv(f'{DATA_DIR}/test.csv')
+        df_sub = pd.read_csv(f'{DATA_DIR}/sample_submission.csv')
+
+        df_train = data_preprocessing(df_train)
+        df_test = data_preprocessing(df_test, test=True)
+
+        predictor = train_model(df_train)
+        evaluate_predictor(predictor, df_train)
+        save_submission_file(predictor, df_test, df_sub)
+    finally:
+        # Restore stdout and stderr
+        sys.stdout.close()
+        sys.stdout = sys.__stdout__
+        sys.stderr = sys.__stderr__
