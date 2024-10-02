@@ -14,6 +14,7 @@ Logging is implemented to capture all console output in a timestamped log file.
 from datetime import datetime
 import pandas as pd
 from autogluon.tabular import TabularPredictor
+import logging
 
 # Constants
 DATA_DIR = '/Users/asvs/kartheek_hobby_projects/loan_approval_prediction/data'
@@ -26,6 +27,10 @@ EVAL_METRIC = 'roc_auc'
 TIME_LIMIT = 1*60 # 1 minute
 TIME_STAMP = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
 LOG_FILE = f"logs/train_autogluon_{TIME_STAMP}.log"
+
+# Set up logging
+logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger()
 
 def data_preprocessing(df, test=False):
     """
@@ -68,7 +73,7 @@ def train_model(df_train):
     - Time limit: Specified by TIME_LIMIT constant
     - Verbosity: Set to 2 for detailed output
     """
-    predictor = TabularPredictor(label=TARGET_COL, eval_metric=EVAL_METRIC).fit(
+    predictor = TabularPredictor(label=TARGET_COL, eval_metric=EVAL_METRIC, log_to_file=True, log_file=LOG_FILE).fit(
         df_train,
         time_limit=TIME_LIMIT,
         verbosity=2
@@ -78,21 +83,21 @@ def train_model(df_train):
 
 def evaluate_predictor(predictor, df_train):
     """
-    Evaluate the trained AutoGluon model, print performance metrics, and save predictions.
+    Evaluate the trained AutoGluon model, log performance metrics, and save predictions.
 
     Args:
         predictor (autogluon.tabular.TabularPredictor): The trained AutoGluon model.
         df_train (pandas.DataFrame): The training DataFrame used to train the model.
 
     This function performs the following:
-    1. Calculates and prints the model's performance metrics on the training data.
-    2. Calculates and prints feature importance scores.
+    1. Calculates and logs the model's performance metrics on the training data.
+    2. Calculates and logs feature importance scores.
     3. Generates and saves probability predictions for the positive class.
     """
     train_metrics = predictor.evaluate(df_train)
     feature_importance = predictor.feature_importance(df_train)
-    print(f"Train metrics:\n {train_metrics}")
-    print(f"Feature importance:\n {feature_importance}")
+    logger.info(f"Train metrics:\n {train_metrics}")
+    logger.info(f"Feature importance:\n {feature_importance}")
 
     # Save probability predictions on train dataset to a CSV file.
     train_preds = predictor.predict_proba(df_train)
@@ -100,7 +105,7 @@ def evaluate_predictor(predictor, df_train):
     pred_df = df_train.copy()
     pred_df['predicted_proba'] = positive_class_preds
     pred_df.to_csv(f"predictions/train_preds_autogluon_{TIME_STAMP}.csv", index=False)
-    print(f"Train predictions saved to predictions/train_preds_autogluon_{TIME_STAMP}.csv")
+    logger.info(f"Train predictions saved to predictions/train_preds_autogluon_{TIME_STAMP}.csv")
 
 def save_submission_file(predictor, df_test, df_sub):
     """
@@ -121,7 +126,8 @@ def save_submission_file(predictor, df_test, df_sub):
     df_sub = df_sub.copy()
     df_sub[TARGET_COL] = predictor.predict_proba(df_test)[1] # predicting the probability of the positive class, index 1 is for the positive class.
     df_sub.to_csv(f"predictions/submission_autogluon_{TIME_STAMP}.csv", index=False)
-    print(f"Submission file saved to predictions/submission_autogluon_{TIME_STAMP}.csv")
+    logger.info(f"Submission file saved to predictions/submission_autogluon_{TIME_STAMP}.csv")
+
 if __name__ == "__main__":
     """
     Main execution block of the script.
@@ -136,11 +142,6 @@ if __name__ == "__main__":
 
     All console output is redirected to the log file specified by LOG_FILE constant.
     """
-    import sys
-
-    # Redirect stdout and stderr to a file
-    sys.stdout = sys.stderr = open(LOG_FILE, 'w')
-
     try:
         df_train = pd.read_csv(f'{DATA_DIR}/train.csv')
         df_test  = pd.read_csv(f'{DATA_DIR}/test.csv')
@@ -152,8 +153,7 @@ if __name__ == "__main__":
         predictor = train_model(df_train)
         evaluate_predictor(predictor, df_train)
         save_submission_file(predictor, df_test, df_sub)
+    except Exception as e:
+        logger.exception("An error occurred during script execution:")
     finally:
-        # Restore stdout and stderr
-        sys.stdout.close()
-        sys.stdout = sys.__stdout__
-        sys.stderr = sys.__stderr__
+        logging.shutdown()
