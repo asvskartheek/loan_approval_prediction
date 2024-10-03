@@ -43,7 +43,7 @@ NUMERICAL_COLS = [
 TARGET_COL = "loan_status"
 
 EVAL_METRIC = "roc_auc"
-TIME_LIMIT = 10 * 60  # 10 minutes
+TIME_LIMIT = 60 * 60  # 60 minutes
 TIME_STAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 EXPERIMENT_NAME = "cv_5fold"
 LOG_FILE = f"logs/train_autogluon_{EXPERIMENT_NAME}_{TIME_STAMP}.log"
@@ -114,7 +114,12 @@ def cross_validation(df_train, df_test) -> List[pd.DataFrame]:
             eval_metric=EVAL_METRIC,
             log_to_file=True,
             log_file_path=LOG_FILE,
-        ).fit(train_data, time_limit=TIME_LIMIT, verbosity=2)
+        ).fit(
+            train_data,
+            time_limit=TIME_LIMIT,
+            verbosity=2,
+            presets="best_quality"
+        )
 
         # Evaluate the model on the validation data for this fold
         val_metrics = predictor.evaluate(val_data)
