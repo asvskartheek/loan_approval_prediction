@@ -27,7 +27,7 @@ TARGET_COL = 'loan_status'
 EVAL_METRIC = 'roc_auc'
 TIME_LIMIT = 10*60 # 10 minutes
 TIME_STAMP = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-EXPERIMENT_NAME = 'oversampling_1_1'
+EXPERIMENT_NAME = ''
 LOG_FILE = f"logs/train_autogluon_{EXPERIMENT_NAME}_{TIME_STAMP}.log"
 
 # Set up logging
@@ -50,25 +50,12 @@ def data_preprocessing(df, test=False):
     2. Drops the 'id' column as it's not required for training or prediction.
     3. Converts categorical columns to 'category' dtype for AutoGluon compatibility.
     4. For training data (test=False), converts the target column to integer type.
-    5. For training data, applies undersampling to balance the classes.
     """
     df = df.copy()
     df = df.drop(columns=['id']) # dropping id column as it is not required for training
     df[CATEGORICAL_COLS] = df[CATEGORICAL_COLS].astype('category') # type casting categorical columns to category, necessary for AutoGluon
     if not test:
         df[TARGET_COL] = df[TARGET_COL].astype('int') # type casting target column to int.
-        
-        # Oversampling the minority class (1) to match the majority class (0)
-        sampling_ratio = 1.0 # 1:1
-        df_majority = df[df[TARGET_COL] == 0]
-        df_minority = df[df[TARGET_COL] == 1]
-        df_minority_oversampled = resample(df_minority, 
-                                           replace=True,
-                                           n_samples=int(len(df_majority)*sampling_ratio),
-                                           random_state=42)
-        df = pd.concat([df_majority, df_minority_oversampled])
-        
-        logger.info(f"Class distribution after balancing: {df[TARGET_COL].value_counts()}")
 
     return df
 
@@ -161,7 +148,7 @@ if __name__ == "__main__":
     This block performs the following steps:
     1. Sets up logging to capture all console output in a timestamped log file.
     2. Loads the training, test, and sample submission data from CSV files.
-    3. Preprocesses the training and test data (including class balancing for training data).
+    3. Preprocesses the training and test data.
     4. Trains an AutoGluon model on the preprocessed training data.
     5. Evaluates the trained model's performance on the training data.
     6. Generates predictions for the test data and saves them in a submission file.
