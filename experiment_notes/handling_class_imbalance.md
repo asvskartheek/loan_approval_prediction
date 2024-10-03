@@ -73,8 +73,15 @@ Undersampling the majority class (0) does not seem to be a good idea. It is not 
 We will oversample the training data points with label 1 in different ratios and check the performance. We will define new hyper-parameter sampling_ratio = len(df_minority)/len(df_majority).
 
 ### Ratio of 1:1
-ROC_AUC: 0.98477
+ROC_AUC score: 1.00000
 ```
 Classification report:
                precision    recall  f1-score   support
+           0       1.00      1.00      1.00     50295
+           1       0.99      1.00      0.99      8350
+    accuracy                           1.00     58645
+   macro avg       0.99      1.00      1.00     58645
+weighted avg       1.00      1.00      1.00     58645
+```
 
+The results are 100% everywhere this is fishy, maybe the model is overfitting to the training dataset.

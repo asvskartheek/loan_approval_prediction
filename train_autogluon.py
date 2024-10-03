@@ -27,7 +27,8 @@ TARGET_COL = 'loan_status'
 EVAL_METRIC = 'roc_auc'
 TIME_LIMIT = 10*60 # 10 minutes
 TIME_STAMP = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-LOG_FILE = f"logs/train_autogluon_{TIME_STAMP}.log"
+EXPERIMENT_NAME = 'oversampling_1_1'
+LOG_FILE = f"logs/train_autogluon_{EXPERIMENT_NAME}_{TIME_STAMP}.log"
 
 # Set up logging
 logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -57,15 +58,15 @@ def data_preprocessing(df, test=False):
     if not test:
         df[TARGET_COL] = df[TARGET_COL].astype('int') # type casting target column to int.
         
-        # Undersampling the majority class (0)
-        sampling_ratio = 2.0 # 2:1
+        # Oversampling the minority class (1) to match the majority class (0)
+        sampling_ratio = 1.0 # 1:1
         df_majority = df[df[TARGET_COL] == 0]
         df_minority = df[df[TARGET_COL] == 1]
-        df_majority_downsampled = resample(df_majority, 
-                                           replace=False,
-                                           n_samples=int(len(df_minority)*sampling_ratio),
+        df_minority_oversampled = resample(df_minority, 
+                                           replace=True,
+                                           n_samples=int(len(df_majority)*sampling_ratio),
                                            random_state=42)
-        df = pd.concat([df_majority_downsampled, df_minority])
+        df = pd.concat([df_majority, df_minority_oversampled])
         
         logger.info(f"Class distribution after balancing: {df[TARGET_COL].value_counts()}")
 
